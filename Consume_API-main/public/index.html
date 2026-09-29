@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geolocation MapTiler</title>
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Leaflet CSS untuk Peta -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
+    <style>
+        /* Latar Belakang Biru Langit */
+        body {
+            background: linear-gradient(180deg, #38bdf8 0%, #7dd3fc 50%, #bae6fd 100%);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Animasi Matahari Mengambang */
+        .sun {
+            position: absolute;
+            top: 25px;
+            right: 40px;
+            width: 80px;
+            height: 80px;
+            background: radial-gradient(circle, #fde047 0%, #f59e0b 100%);
+            border-radius: 50%;
+            box-shadow: 0 0 35px #fde047, 0 0 70px #f59e0b;
+            animation: floatSun 6s ease-in-out infinite alternate, pulseSun 3s ease-in-out infinite alternate;
+            z-index: 1;
+        }
+
+        @keyframes floatSun {
+            0% { transform: translateY(0px) rotate(0deg); }
+            100% { transform: translateY(-12px) rotate(8deg); }
+        }
+
+        @keyframes pulseSun {
+            0% { box-shadow: 0 0 30px #fde047, 0 0 60px #f59e0b; }
+            100% { box-shadow: 0 0 45px #fde047, 0 0 90px #f59e0b; }
+        }
+
+        /* Animasi Awan Melayang */
+        .cloud {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.85);
+            border-radius: 50px;
+            animation: moveCloud linear infinite;
+            z-index: 1;
+            filter: blur(1px);
+        }
+
+        .cloud::before, .cloud::after {
+            content: '';
+            position: absolute;
+            background: rgba(255, 255, 255, 0.85);
+            border-radius: 50%;
+        }
+
+        .cloud1 {
+            width: 140px; height: 45px; top: 60px;
+            animation-duration: 35s;
+        }
+        .cloud1::before { width: 60px; height: 60px; top: -25px; left: 20px; }
+        .cloud1::after { width: 45px; height: 45px; top: -15px; right: 20px; }
+
+        .cloud2 {
+            width: 190px; height: 55px; top: 140px;
+            animation-duration: 45s;
+            animation-delay: -15s;
+            opacity: 0.7;
+        }
+        .cloud2::before { width: 75px; height: 75px; top: -30px; left: 25px; }
+        .cloud2::after { width: 55px; height: 55px; top: -18px; right: 25px; }
+
+        @keyframes moveCloud {
+            from { left: -220px; }
+            to { left: 100vw; }
+        }
+
+        /* Glassmorphism Card Style */
+        .glass {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+
+        /* Container Peta */
+        #map {
+            height: 380px;
+            width: 100%;
+            border-radius: 1rem;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body class="relative font-sans text-slate-800 p-4 md:p-8">
+
+    <!-- Animasi Dekorasi Langit -->
+    <div class="sun pointer-events-none hidden md:block"></div>
+    <div class="cloud cloud1 pointer-events-none"></div>
+    <div class="cloud cloud2 pointer-events-none"></div>
+
+    <div class="max-w-5xl mx-auto relative z-10 space-y-6">
+
+        <!-- Header Utama & Kartu Profil Mahasiswa -->
+        <header class="glass rounded-2xl p-6 shadow-xl flex flex-col md:flex-row justify-between items-center gap-4">
+            <div>
+                <h1 class="text-2xl md:text-3xl font-extrabold text-sky-900 flex items-center gap-3">
+                    <i class="fa-solid fa-cloud-sun text-amber-500"></i> Geolocation App
+                </h1>
+                <p class="text-sm text-sky-700 mt-1">Pencarian Lokasi via MapTiler API</p>
+            </div>
+
+            <!-- Identitas Mahasiswa (Nama & NIM) -->
+            <div class="bg-sky-50/90 border border-sky-200 rounded-xl p-4 w-full md:w-auto text-sm space-y-1">
+                <div class="flex items-center gap-2">
+                    <span class="font-bold text-sky-800 w-16">Nama</span>
+                    <span class="text-sky-900">: <input type="text" value="Raihan Alfakhri Putra Ramadhan" class="bg-transparent border-b border-sky-300 focus:outline-none font-semibold text-sky-900 px-1" /></span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="font-bold text-sky-800 w-16">NIM</span>
+                    <span class="text-sky-900">: <input type="text" value="20240140267" class="bg-transparent border-b border-sky-300 focus:outline-none font-semibold text-sky-900 px-1" /></span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Form Pencarian Lokasi -->
+        <div class="glass rounded-2xl p-6 shadow-xl">
+            <form id="searchForm" class="flex flex-col md:flex-row gap-3">
+                <div class="relative flex-1">
+                    <i class="fa-solid fa-location-dot absolute left-4 top-1/2 -translate-y-1/2 text-sky-500 text-lg"></i>
+                    <input 
+                        type="text" 
+                        id="inputLokasi" 
+                        placeholder="Masukkan nama lokasi (contoh: Jakarta, Sleman, Bali...)" 
+                        class="w-full pl-11 pr-4 py-3 rounded-xl border border-sky-200 focus:ring-2 focus:ring-sky-400 focus:outline-none text-slate-700 bg-white/90 shadow-inner"
+                        required
+                    />
+                </div>
+                <button 
+                    type="submit" 
+                    id="btnCari" 
+                    class="bg-sky-600 hover:bg-sky-700 active:scale-95 text-white font-bold px-8 py-3 rounded-xl shadow-lg transition flex items-center justify-center gap-2"
+                >
+                    <i class="fa-solid fa-magnifying-glass"></i> Cari Lokasi
+                </button>
+            </form>
+
+            <!-- Tombol Rekomendasi Cepat -->
+            <div class="flex flex-wrap items-center gap-2 mt-4 text-xs">
+                <span class="text-sky-800 font-semibold">Rekomendasi:</span>
+                <button onclick="cariCepat('Jakarta')" class="px-3 py-1 bg-white/80 hover:bg-sky-100 border border-sky-200 rounded-full text-sky-700 font-medium transition">Jakarta</button>
+                <button onclick="cariCepat('Yogyakarta')" class="px-3 py-1 bg-white/80 hover:bg-sky-100 border border-sky-200 rounded-full text-sky-700 font-medium transition">Yogyakarta</button>
+                <button onclick="cariCepat('Surabaya')" class="px-3 py-1 bg-white/80 hover:bg-sky-100 border border-sky-200 rounded-full text-sky-700 font-medium transition">Surabaya</button>
+                <button onclick="cariCepat('Bandung')" class="px-3 py-1 bg-white/80 hover:bg-sky-100 border border-sky-200 rounded-full text-sky-700 font-medium transition">Bandung</button>
+                <button onclick="cariCepat('Denpasar')" class="px-3 py-1 bg-white/80 hover:bg-sky-100 border border-sky-200 rounded-full text-sky-700 font-medium transition">Denpasar</button>
+            </div>
+        </div>
+
+        <!-- Detail Data Geolocation -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            <!-- Negara -->
+            <div class="glass rounded-xl p-4 shadow-md text-center hover:scale-105 transition">
+                <div class="w-10 h-10 mx-auto bg-sky-100 rounded-full flex items-center justify-center text-sky-600 mb-2">
+                    <i class="fa-solid fa-flag text-lg"></i>
+                </div>
+                <p class="text-xs font-semibold text-sky-700 uppercase tracking-wider">Negara</p>
+                <p id="resNegara" class="text-lg font-bold text-slate-800 mt-1">-</p>
+            </div>
+
+            <!-- Provinsi -->
+            <div class="glass rounded-xl p-4 shadow-md text-center hover:scale-105 transition">
+                <div class="w-10 h-10 mx-auto bg-sky-100 rounded-full flex items-center justify-center text-sky-600 mb-2">
+                    <i class="fa-solid fa-map text-lg"></i>
+                </div>
+                <p class="text-xs font-semibold text-sky-700 uppercase tracking-wider">Provinsi</p>
+                <p id="resProvinsi" class="text-lg font-bold text-slate-800 mt-1">-</p>
+            </div>
+
+            <!-- Kecamatan -->
+            <div class="glass rounded-xl p-4 shadow-md text-center hover:scale-105 transition">
+                <div class="w-10 h-10 mx-auto bg-sky-100 rounded-full flex items-center justify-center text-sky-600 mb-2">
+                    <i class="fa-solid fa-building text-lg"></i>
+                </div>
+                <p class="text-xs font-semibold text-sky-700 uppercase tracking-wider">Kecamatan</p>
+                <p id="resKecamatan" class="text-lg font-bold text-slate-800 mt-1">-</p>
+            </div>
+
+            <!-- Longitude -->
+            <div class="glass rounded-xl p-4 shadow-md text-center hover:scale-105 transition">
+                <div class="w-10 h-10 mx-auto bg-sky-100 rounded-full flex items-center justify-center text-sky-600 mb-2">
+                    <i class="fa-solid fa-compass text-lg"></i>
+                </div>
+                <p class="text-xs font-semibold text-sky-700 uppercase tracking-wider">Longitude</p>
+                <p id="resLongitude" class="text-lg font-bold text-slate-800 mt-1">-</p>
+            </div>
+
+            <!-- Latitude -->
+            <div class="glass rounded-xl p-4 shadow-md text-center hover:scale-105 transition">
+                <div class="w-10 h-10 mx-auto bg-sky-100 rounded-full flex items-center justify-center text-sky-600 mb-2">
+                    <i class="fa-solid fa-location-crosshairs text-lg"></i>
+                </div>
+                <p class="text-xs font-semibold text-sky-700 uppercase tracking-wider">Latitude</p>
+                <p id="resLatitude" class="text-lg font-bold text-slate-800 mt-1">-</p>
+            </div>
+        </div>
+
+        <!-- Tampilan Peta Interaktif -->
+        <div class="glass rounded-2xl p-6 shadow-xl space-y-4">
+            <div class="flex justify-between items-center">
+                <h2 class="text-lg font-bold text-sky-900 flex items-center gap-2">
+                    <i class="fa-solid fa-map-location-dot text-sky-600"></i> Visualisasi Peta Interaktif
+                </h2>
+                <span id="fullAddressLabel" class="text-xs text-sky-800 font-medium bg-sky-100/80 px-3 py-1 rounded-full">Lokasi: Jakarta</span>
+            </div>
+
+            <!-- Container Leaflet Map -->
+            <div id="map"></div>
+        </div>
+
+    </div>
+
+    <!-- Leaflet JS CDN -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        let map, marker;
+        const apiKeyMapTiler = "TmW3n2IbOKaZxkghOoYB";
+
+        // Inisialisasi Peta Leaflet
+        function initMap(lat = -6.2088, lng = 106.8456, title = "Jakarta") {
+            if (!map) {
+                map = L.map('map').setView([lat, lng], 12);
+
+                const tileUrl = `https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=${apiKeyMapTiler}`;
+                L.tileLayer(tileUrl, {
+                    tileSize: 512,
+                    zoomOffset: -1,
+                    minZoom: 1,
+                    attribution: '&copy; <a href="https://www.maptiler.com/copyright/">MapTiler</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+                    crossOrigin: true
+                }).addTo(map);
+
+                marker = L.marker([lat, lng]).addTo(map)
+                    .bindPopup(`<b>${title}</b>`)
+                    .openPopup();
+            } else {
+                map.flyTo([lat, lng], 13, { duration: 1.5 });
+                marker.setLatLng([lat, lng])
+                    .bindPopup(`<b>${title}</b>`)
+                    .openPopup();
+            }
+
+            setTimeout(() => { map.invalidateSize(); }, 300);
+        }
+
+        // Ambil data lokasi dari endpoint Express (/api/lokasi)
+        async function fetchLocationData(query) {
+            const btn = document.getElementById("btnCari");
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> Memuat...`;
+
+            try {
+                const response = await fetch(`/api/lokasi?q=${encodeURIComponent(query)}`);
+                if (!response.ok) {
+                    throw new Error("Lokasi tidak ditemukan atau terjadi kesalahan pada server");
+                }
+                const data = await response.json();
+
+                // Update Kartu Detail
+                document.getElementById("resNegara").innerText = data.negara || "-";
+                document.getElementById("resProvinsi").innerText = data.provinsi || "-";
+                document.getElementById("resKecamatan").innerText = data.kecamatan || "-";
+                document.getElementById("resLongitude").innerText = data.longitude !== undefined ? Number(data.longitude).toFixed(4) : "-";
+                document.getElementById("resLatitude").innerText = data.latitude !== undefined ? Number(data.latitude).toFixed(4) : "-";
+                document.getElementById("fullAddressLabel").innerText = `Lokasi: ${data.full_address || data.lokasi}`;
+
+                // Update Peta
+                if (data.latitude && data.longitude) {
+                    initMap(data.latitude, data.longitude, data.lokasi);
+                }
+
+            } catch (err) {
+                alert("Gagal mengambil data lokasi: " + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = `<i class="fa-solid fa-magnifying-glass"></i> Cari Lokasi`;
+            }
+        }
+
+        // Fungsi Rekomendasi Cepat
+        function cariCepat(namaKota) {
+            document.getElementById("inputLokasi").value = namaKota;
+            fetchLocationData(namaKota);
+        }
+
+        // Event listener Form Submit
+        document.getElementById("searchForm").addEventListener("submit", (e) => {
+            e.preventDefault();
+            const q = document.getElementById("inputLokasi").value.trim();
+            if (q) fetchLocationData(q);
+        });
+
+        // Jalankan pencarian default saat pertama kali dimuat
+        window.addEventListener("DOMContentLoaded", () => {
+            initMap(-6.2088, 106.8456, "Jakarta");
+            fetchLocationData("Jakarta");
+        });
+    </script>
+</body>
+</html>
