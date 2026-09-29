@@ -47,7 +47,19 @@ app.get("/api/lokasi", async (req, res) => {
             });
         }
 
-        
+        // Mengirimkan response JSON ke frontend
+        res.json({
+            lokasi: feature.text || query,
+            full_address: feature.place_name || feature.text || query,
+            negara: negara,
+            provinsi: provinsi,
+            kecamatan: kecamatan,
+            longitude: lng,
+            latitude: lat,
+            koordinat: coordinates
+        });
+
+    
 });
 
 app.listen(PORT, () => {
