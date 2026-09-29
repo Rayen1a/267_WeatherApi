@@ -59,7 +59,10 @@ app.get("/api/lokasi", async (req, res) => {
             koordinat: coordinates
         });
 
-    
+    } catch (error) {
+        console.error("Error MapTiler API:", error.message);
+        
+    }
 });
 
 app.listen(PORT, () => {
