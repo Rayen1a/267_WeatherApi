@@ -30,6 +30,23 @@ app.get("/api/lokasi", async (req, res) => {
         const lng = coordinates[0];
         const lat = coordinates[1];
 
+        // Menganalisis hirarki lokasi dari response MapTiler
+        let negara = "-";
+        let provinsi = "-";
+        let kecamatan = "-";
+
+        if (feature.context) {
+            feature.context.forEach(item => {
+                if (item.id.startsWith("country")) {
+                    negara = item.text_id || item.text;
+                } else if (item.id.startsWith("region") || item.id.startsWith("province")) {
+                    provinsi = item.text;
+                } else if (item.id.startsWith("subdistrict") || item.id.startsWith("district") || item.id.startsWith("locality")) {
+                    kecamatan = item.text;
+                }
+            });
+        }
+
         
 });
 
